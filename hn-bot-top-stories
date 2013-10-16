@@ -1,0 +1,112 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import sys
+import time
+import json
+import urllib2
+import ConfigParser
+
+import twitter
+
+
+def seen(myid):
+    try:
+        with open(SEENDB, 'r') as f:
+            if (str(myid) in [x.strip() for x in f.readlines()]):
+                return 1
+            else:
+                return 0
+    except IOError as e:
+        # catch non-existing SEENDB
+        if e.errno == 2:
+            return 0
+
+
+def write_to_seen(myid):
+    with open(SEENDB, 'a') as f:
+        f.write(str(myid))
+        f.write('\n')
+
+
+apiurl = 'http://api.ihackernews.com/page'
+comment = 'https://news.ycombinator.com/item?id='
+
+# init config parser (for reading twitter credentials)
+config = ConfigParser.RawConfigParser()
+config.read('hn-bot-top-stories.credentials')
+
+# api.ihackernews.com returns often with Error 500,
+# so we try 10 times before we fail
+i = 0
+data = {}
+errormsg = ''
+while(i < 10 and not data):
+    try:
+        data = json.load(urllib2.urlopen(apiurl))
+    except Exception as e:
+        errormsg = errormsg + "Run {0}: {1}\n".format(i, e)
+        time.sleep(10)
+        i += 1
+
+if not data:
+    print errormsg
+    print "API call {0} failed!".format(apiurl)
+    sys.exit(1)
+
+for arg in sys.argv[1:]:
+    try:
+        MAX = int(arg)
+    except:
+        print "Need numeric argmuent!"
+        sys.exit(1)
+    SEENDB = 'seen{0}.db'.format(MAX)
+    SECTION = 'hn_bot_top{0}'.format(MAX)
+
+    # twitter credentials
+    my_consumer_key = config.get(SECTION, 'consumer_key')
+    my_consumer_secret = config.get(SECTION, 'consumer_secret')
+    my_access_token_key = config.get(SECTION, 'access_token_key')
+    my_access_token_secret = config.get(SECTION, 'access_token_secret')
+
+    for rank in range(0, MAX):
+        newid = data['items'][rank]['id']
+        title = data['items'][rank]['title'].encode('utf-8')
+        url = data['items'][rank]['url']
+        comment_url = "{0}{1}".format(comment, newid)
+
+        if not seen(newid):
+            # calculate the chars needed (without title)
+            # twitter shortens URLs at 22 (http) or 23 (https) chars
+            chars = 4  # 2 spaces + 2 braces
+            if (url[0:5] == 'https'):
+                if len(url) < 23:
+                    chars += len(url)
+                else:
+                    chars += 23
+            else:
+                if len(url) < 22:
+                    chars += len(url)
+                else:
+                    chars += 22
+            chars += 23  # comment url
+
+            # cut title if too long
+            if (chars + len(title) > 140):
+                title = "{0} ...".format(title[0:140-chars-4])
+
+            t = "{0} {1} ({2})".format(title, url, comment_url)
+
+            # tweet
+            try:
+                api = twitter.Api(consumer_key=my_consumer_key,
+                                  consumer_secret=my_consumer_secret,
+                                  access_token_key=my_access_token_key,
+                                  access_token_secret=my_access_token_secret)
+                api.PostUpdate(t)
+            except Exception as e:
+                print "{0}".format(e)
+                print "Posting to Twitter failed!"
+                sys.exit(1)
+
+            write_to_seen(newid)
