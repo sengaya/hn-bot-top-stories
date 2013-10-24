@@ -46,7 +46,7 @@ while(i < 11 and not data):
         data = json.load(urllib2.urlopen(apiurl))
     except Exception as e:
         errormsg = errormsg + "Run {0}: {1}\n".format(i, e)
-        time.sleep(10)
+        time.sleep(20)
         i += 1
 
 if not data:
