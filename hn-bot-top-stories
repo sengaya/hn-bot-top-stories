@@ -79,23 +79,32 @@ for arg in sys.argv[1:]:
             # calculate the chars needed (without title)
             # twitter shortens URLs at 22 (http) or 23 (https) chars
             chars = 4  # 2 spaces + 2 braces
-            if (url[0:5] == 'https'):
+            if (url[0:8] == 'https://'):
                 if len(url) < 23:
                     chars += len(url)
                 else:
                     chars += 23
-            else:
+            elif (url[0:7] == 'http://'):
                 if len(url) < 22:
                     chars += len(url)
                 else:
                     chars += 22
+            elif (url[0] == '/'):  # it's a story on HN
+                chars -= 3  # no space + braces for comment link
+            else:
+                print "Unknown URL schema: {0}".format(url)
+                sys.exit(1)
+
             chars += 23  # comment url
 
             # cut title if too long
             if (chars + len(title) > 140):
                 title = "{0} ...".format(title[0:140-chars-4])
 
-            t = "{0} {1} ({2})".format(title, url, comment_url)
+            if (url[0] == '/'):  # it's a story on HN
+                t = "{0} {1}".format(title, comment_url)
+            else:
+                t = "{0} {1} ({2})".format(title, url, comment_url)
 
             # tweet
             try:
