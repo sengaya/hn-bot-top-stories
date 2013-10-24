@@ -38,10 +38,10 @@ config.read('hn-bot-top-stories.credentials')
 
 # api.ihackernews.com returns often with Error 500,
 # so we try 10 times before we fail
-i = 0
+i = 1
 data = {}
 errormsg = ''
-while(i < 10 and not data):
+while(i < 11 and not data):
     try:
         data = json.load(urllib2.urlopen(apiurl))
     except Exception as e:
