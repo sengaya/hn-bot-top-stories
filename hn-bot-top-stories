@@ -54,6 +54,11 @@ if not data:
     print "API call {0} failed!".format(apiurl)
     sys.exit(1)
 
+# If API call succeeds, but no items are received: exit
+# This can happen if HN is down
+if not data['items']:
+    sys.exit(0)
+
 for arg in sys.argv[1:]:
     try:
         MAX = int(arg)
