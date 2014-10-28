@@ -6,6 +6,7 @@ import time
 import json
 import urllib2
 import ConfigParser
+import HTMLParser
 
 import twitter
 
@@ -74,10 +75,12 @@ for arg in sys.argv[1:]:
     my_access_token_key = config.get(SECTION, 'access_token_key')
     my_access_token_secret = config.get(SECTION, 'access_token_secret')
 
+    h = HTMLParser.HTMLParser()
+
     for rank in range(0, MAX):
         newid = data['items'][rank]['id']
         title = data['items'][rank]['title'].encode('utf-8')
-        url = data['items'][rank]['url'].encode('utf-8')
+        url = h.unescape(data['items'][rank]['url']).encode('utf-8')
         comment_url = "{0}{1}".format(comment, newid)
 
         if not seen(newid):
