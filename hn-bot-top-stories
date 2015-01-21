@@ -11,6 +11,13 @@ import HTMLParser
 import twitter
 
 
+RETRIES = 10  # try X times to fetch data from the HN API
+SLEEP = 20    # time to wait between RETRIES
+APIURL = 'https://hacker-news.firebaseio.com/v0/'
+TOPSTORIESURL = "{0}topstories.json".format(APIURL)
+COMMENT = 'https://news.ycombinator.com/item?id='
+
+
 def seen(myid):
     try:
         with open(SEENDB, 'r') as f:
@@ -30,35 +37,33 @@ def write_to_seen(myid):
         f.write('\n')
 
 
-apiurl = 'http://api.ihackernews.com/page'
-comment = 'https://news.ycombinator.com/item?id='
+def get_data(url):
+    i = 1
+    errormsg = ''
+    data = None
+
+    while(i < 11 and not data):
+        try:
+            data = json.load(urllib2.urlopen(url))
+        except Exception as e:
+            errormsg = errormsg + "Run {0}: {1}\n".format(i, e)
+            time.sleep(SLEEP)
+            i += 1
+
+    if data:
+        return data
+    else:
+        print errormsg
+        print "API call {0} failed!".format(url)
+        sys.exit(1)
+
 
 # init config parser (for reading twitter credentials)
 config = ConfigParser.RawConfigParser()
 config.read('hn-bot-top-stories.credentials')
 
-# api.ihackernews.com returns often with Error 500,
-# so we try 10 times before we fail
-i = 1
 data = {}
-errormsg = ''
-while(i < 11 and not data):
-    try:
-        data = json.load(urllib2.urlopen(apiurl))
-    except Exception as e:
-        errormsg = errormsg + "Run {0}: {1}\n".format(i, e)
-        time.sleep(20)
-        i += 1
-
-if not data:
-    print errormsg
-    print "API call {0} failed!".format(apiurl)
-    sys.exit(1)
-
-# If API call succeeds, but no items are received: exit
-# This can happen if HN is down
-if not data['items']:
-    sys.exit(0)
+topstories = get_data(TOPSTORIESURL)
 
 for arg in sys.argv[1:]:
     try:
@@ -76,54 +81,58 @@ for arg in sys.argv[1:]:
     my_access_token_secret = config.get(SECTION, 'access_token_secret')
 
     h = HTMLParser.HTMLParser()
+    unseen = [(rank, storyid) for (rank, storyid) in
+              list(enumerate(topstories[0:MAX])) if not seen(storyid)]
 
-    for rank in range(0, MAX):
-        newid = data['items'][rank]['id']
-        title = data['items'][rank]['title'].encode('utf-8')
-        url = h.unescape(data['items'][rank]['url']).encode('utf-8')
-        comment_url = "{0}{1}".format(comment, newid)
+    for (rank, storyid) in unseen:
+        if rank not in data:
+            jsonurl = "{0}item/{1}.json".format(APIURL, storyid)
+            data[rank] = get_data(jsonurl)
 
-        if not seen(newid):
-            # calculate the chars needed (without title)
-            # twitter shortens URLs at 22 (http) or 23 (https) chars
-            chars = 4  # 2 spaces + 2 braces
-            if (url[0:8] == 'https://'):
-                if len(url) < 23:
-                    chars += len(url)
-                else:
-                    chars += 23
-            elif (url[0:7] == 'http://'):
-                if len(url) < 22:
-                    chars += len(url)
-                else:
-                    chars += 22
-            elif (url[0] == '/'):  # it's a story on HN
-                chars -= 3  # no space + braces for comment link
+        title = data[rank]['title'].encode('utf-8')
+        url = h.unescape(data[rank]['url']).encode('utf-8')
+        comment_url = "{0}{1}".format(COMMENT, storyid)
+
+        # calculate the chars needed (without title)
+        # twitter shortens URLs at 22 (http) or 23 (https) chars
+        chars = 4  # 2 spaces + 2 braces
+        if (url[0:8] == 'https://'):
+            if len(url) < 23:
+                chars += len(url)
             else:
-                print "Unknown URL schema: {0}".format(url)
-                sys.exit(1)
-
-            chars += 23  # comment url
-
-            # cut title if too long
-            if (chars + len(title) > 140):
-                title = "{0} ...".format(title[0:140-chars-4])
-
-            if (url[0] == '/'):  # it's a story on HN
-                t = "{0} {1}".format(title, comment_url)
+                chars += 23
+        elif (url[0:7] == 'http://'):
+            if len(url) < 22:
+                chars += len(url)
             else:
-                t = "{0} {1} ({2})".format(title, url, comment_url)
+                chars += 22
+        elif (url == ''):  # it's a story on HN
+            chars -= 3  # no space + braces for comment link
+        else:
+            print "Unknown URL schema: {0}".format(url)
+            sys.exit(1)
 
-            # tweet
-            try:
-                api = twitter.Api(consumer_key=my_consumer_key,
-                                  consumer_secret=my_consumer_secret,
-                                  access_token_key=my_access_token_key,
-                                  access_token_secret=my_access_token_secret)
-                api.PostUpdate(t)
-            except Exception as e:
-                print "{0}".format(e)
-                print "Posting to Twitter failed!"
-                sys.exit(1)
+        chars += 23  # comment url
 
-            write_to_seen(newid)
+        # cut title if too long
+        if (chars + len(title) > 140):
+            title = "{0} ...".format(title[0:140-chars-4])
+
+        if (url == ''):  # it's a story on HN
+            t = "{0} {1}".format(title, comment_url)
+        else:
+            t = "{0} {1} ({2})".format(title, url, comment_url)
+
+        # tweet
+        try:
+            api = twitter.Api(consumer_key=my_consumer_key,
+                              consumer_secret=my_consumer_secret,
+                              access_token_key=my_access_token_key,
+                              access_token_secret=my_access_token_secret)
+            api.PostUpdate(t)
+        except Exception as e:
+            print "{0}".format(e)
+            print "Posting to Twitter failed!"
+            sys.exit(1)
+
+        write_to_seen(storyid)
