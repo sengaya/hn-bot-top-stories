@@ -123,13 +123,15 @@ for arg in sys.argv[1:]:
         else:
             t = "{0} {1} ({2})".format(title, url, comment_url)
 
+        t_unicode = unicode(t, 'utf-8')
+
         # tweet
         try:
             api = twitter.Api(consumer_key=my_consumer_key,
                               consumer_secret=my_consumer_secret,
                               access_token_key=my_access_token_key,
                               access_token_secret=my_access_token_secret)
-            api.PostUpdate(t)
+            api.PostUpdate(t_unicode)
         except Exception as e:
             print "{0}".format(e)
             print "Posting to Twitter failed!"
