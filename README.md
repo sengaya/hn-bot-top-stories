@@ -1,9 +1,9 @@
 Hacker News Bot Top Stories
 ===========================
 
-This program is used to run a bot which posts the top stories of Hacker News to
-Twitter. It uses the ~~unofficial HN API at http://api.ihackernews.com/~~ official HN API at https://github.com/HackerNews/API. The bot
-posts stories to Twitter that reach a certain rank "N" on Hacker News.
+Update May 2016: This bot is retired, have a look at its successor https://github.com/sengaya/hackernews-twitter-bot
+
+This program is used to run a bot which posts the top stories of Hacker News to Twitter. It uses the ~~unofficial HN API at http://api.ihackernews.com/~~ official HN API at https://github.com/HackerNews/API. The bot posts stories to Twitter that reach a certain rank "N" on Hacker News.
 
 Follow @hn_bot_top1 to see the bot in action:
 https://twitter.com/hn_bot_top1
